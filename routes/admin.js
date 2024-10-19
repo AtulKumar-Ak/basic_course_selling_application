@@ -1,55 +1,56 @@
 const {Router}=require("express");
 const {z}=require("zod");
+const bcrypt = require('bcrypt');
 const jwt=require("jsonwebtoken");
 const {admin_auth}=require("../middleware/admin");
 const {JWT_SECRET_ADMIN}=require("../config");
 const adminrouter=Router();
-const {adminModel,courseModel}=require("../db");
+const {adminModel,coursesModel}=require("../db");
 adminrouter.post('/signup',async(req,res)=>{
-    const {email,adminname,password}=req.body;
-    if(!email || !adminname || !password){
-        res.status(400).json({
+    const {email,username,password}=req.body;
+    if(!email || !username || !password){
+        return res.status(400).json({
             message:"incomplete credentials"
         });
     }
     const requireBody=z.object({
         email:z.string().email().max(100).min(5),
-        adminname:z.string().min(5).max(15),
+        username:z.string().min(5).max(15),
         password:z.string().min(5).max(15)
     });
     const pasrseddata=requireBody.safeParse(req.body);
     if(!pasrseddata.success){
-        res.status(400).json({
+        return res.status(400).json({
             message:"incorrect format",
             error:pasrseddata.error
         });
     }
     try{
-        const user=await adminModel.findOne({adminname,email});
+        const user=await adminModel.findOne({username,email});
         if(user){
-            res.status(400).json({
-                message:"adminname or email already in use"
+            return res.status(400).json({
+                message:"username or email already in use"
             });
         }
         const hashedpassword=await bcrypt.hash(password,10);
         await adminModel.create({
-            adminname:adminname,
+            username:username,
             email:email,
             password:hashedpassword
         })
-        res.status(200).json({
+        return res.status(200).json({
             message:"admin added successfully"
         });
     }catch(error){
-        res.status(500).json({
+        return res.status(500).json({
             message:"internal server error"
         });
     }
 });
-adminrouter.post('/signin',admin_auth,async(req,res)=>{
+adminrouter.post('/signin',async(req,res)=>{
     const {email,password}=req.body;
     if(!email||!password){
-        res.status(400).json({
+        return res.status(400).json({
             message:"incomplete credentials"
         });
     }
@@ -59,43 +60,43 @@ adminrouter.post('/signin',admin_auth,async(req,res)=>{
     });
     const pasrseddata=requireBody.safeParse(req.body);
     if(!pasrseddata.success){
-        res.status(400).json({
+        return res.status(400).json({
             message:"incorrect format",
             error:pasrseddata.error
         });
     }
     try{
-        const user=await adminModel.findOne({email});
+        const user=await adminModel.findOne({email:email});
         if(!user){
-            res.status(400).json({
+            return res.status(400).json({
                 message:"invalid credentials"
             })
         }
         const compare=await bcrypt.compare(password,user.password);
         if(!compare){
-            res.status(400).json({
+            return res.status(400).json({
                 message:"invalid credentials"
             })
         }const token=jwt.sign({
             id:user._id.toString()
         },JWT_SECRET_ADMIN);
-        res.status(200).json({
+        return res.status(200).json({
             message:"login successfull",
             authorization:token
         });
     }catch(error){
-        res.status(500).json({
+        return res.status(500).json({
             message:"internal server error"
         })
     }
 });
-// adminrouter.get(/admin-me',admin_auth,(req,res)=>{
+// adminrouter.get(/admin-me',admin_auth,(req,return res)=>{
 
 // });
 adminrouter.post('/create/course',admin_auth,async(req,res)=>{
     const {course_name,course_des,course_price,course_imageurl}=req.body;
     if(!course_name||!course_des||!course_price||!course_imageurl){
-        res.status(400).json({
+        return res.status(400).json({
             message:"incomplete credentials"
         });
     }requireBody=z.object({
@@ -106,36 +107,41 @@ adminrouter.post('/create/course',admin_auth,async(req,res)=>{
     });
     const pasrseddata=requireBody.safeParse(req.body);
     if(!pasrseddata.success){
-        res.status(400).json({
+        return res.status(400).json({
             message:"incorrect format",
             error:pasrseddata.error
         });
     }try{
-        await courseModel.create({
+        await coursesModel.create({
             creator_id:req.userId,
             course_name:course_name,
             course_des:course_des,
             course_price:course_price,
             course_imageurl:course_imageurl
+        });
+        return res.status(200).json({
+            message:"course created successfully"
         })
     }catch(error){
-        res.status(500).json({
+        console.log(error);
+        return res.status(500).json({
             message:"internal server error"
         });
     }
 });
 adminrouter.get('/my/courses',admin_auth,async(req,res)=>{
     try{
-        const courses=await courseModel.find({userId:req.userId});
-        if(!courses){
-            res.status(400).json({
+        const courses=await coursesModel.find({creator_id:req.userId});
+        if(courses.length===0){
+            return res.status(400).json({
                 message:"No courses"
             })
-        }res.status(200).json({
+        }
+        return res.status(200).json({
             courses:courses
         });
     }catch(error){
-        res.status(500).json({
+        return res.status(500).json({
             message:"internal server error"
         });
     }
@@ -152,17 +158,17 @@ adminrouter.put('/update/courses',admin_auth,async(req,res)=>{
         });
         const pasrseddata=requireBody.safeParse(req.body);
         if(!pasrseddata.success){
-            res.status(400).json({
+            return res.status(400).json({
                 message:"incorrect format",
                 error:pasrseddata.error
             });
         }
-        const course=await courseModel.findOne({
+        const course=await coursesModel.findOne({
             _id:courseid,
             creator_id:req.userId
         });
         if(!course){
-            res.status(400).json({
+            return res.status(400).json({
                 message:"course not found"
             });
         }await course.updateOne({
@@ -174,12 +180,12 @@ adminrouter.put('/update/courses',admin_auth,async(req,res)=>{
             course_price:course_price||course.course_price,
             course_imageurl:course_imageurl||course.course_imageurl
         });
-        res.status(200).json({
+        return res.status(200).json({
             message:"course details updated successfully"
         });
 
     }catch(error){
-        res.status(500).json({
+        return res.status(500).json({
             message:"internal server error"
         });
     }
@@ -189,20 +195,23 @@ adminrouter.post('/delete/course',admin_auth,async(req,res)=>{
     try{
 
         const {courseid}=req.body;
-        const course=await courseModel.findOne({
+        const course=await coursesModel.findOne({
             _id:courseid,
             creator_id:req.userId
         });
         if(!course){
-            res.status(400).json({
+            return res.status(400).json({
                 message:"course not found"
             });
-        }await courseModel.deleteOne({
+        }await coursesModel.deleteOne({
             _id:courseid,
-            creator_id:req,userId
+            creator_id:req.userId
+        });return res.status(200).json({
+            message:"course deleted successfully"
         });
     }catch(error){
-        res.status(500).json({
+        console.log(error);
+        return res.status(500).json({
             message:"internal server error"
         });
     }

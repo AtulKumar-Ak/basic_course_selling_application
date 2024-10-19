@@ -9,7 +9,7 @@ function auth(req,res,next){
     }
     try{
         const info=jwt.verify(token,JWT_SECRET);
-        req.userId=info;
+        req.userId=info.id;
         next();
     }catch(error){
         res.status(401).json({

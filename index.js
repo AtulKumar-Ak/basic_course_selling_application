@@ -16,13 +16,12 @@ const {courserouter}=require("./routes/courses");
 app.use("/api/v1/user",userrouter);
 app.use("/api/v1/admin",adminrouter);
 app.use("/api/v1/courses",courserouter);
-app.use("/api/v1",courserouter);
+
 
 async function main(){
     try{
         const MONGO_URL=process.env.MONGO_URL;
-        console.log('MongoDB URI:',MONGO_URL);
-        await mongoose.connect(MONGO_URL)
+        await mongoose.connect(MONGO_URL);
         app.listen(3000,()=>{
             console.log("server is running on port 3000");
         })
